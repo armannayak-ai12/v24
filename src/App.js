@@ -316,13 +316,13 @@ export default function App() {
                 </select>
 
                 <label className="field-label">Age</label>
-                <input type="number" className="input" min={1} max={100} value={age} onChange={(e) => setAge(e.target.value)} />
+                <input type="text" pattern="[0-9]" className="input" min={1} max={100} value={age} onChange={(e) => setAge(e.target.value)} />
 
                 <label className="field-label">Weight (kg)</label>
-                <input type="number" className="input" min={1} max={500} value={weightKg} onChange={(e) => setWeightKg(e.target.value)} />
+                <input type="text" pattern="[0-9]" className="input" min={1} max={500} value={weightKg} onChange={(e) => setWeightKg(e.target.value)} />
 
                 <label className="field-label">Height (cm)</label>
-                <input type="number" className="input" min={50} max={250} value={heightCm} onChange={(e) => setHeightCm(e.target.value)} />
+                <input type="text" pattern="[0-9]" className="input" min={50} max={250} value={heightCm} onChange={(e) => setHeightCm(e.target.value)} />
 
                 <div className="info-row">
                   <span className="info-chip">BMI: {bmi ?? '—'}</span>
