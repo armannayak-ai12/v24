@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import './App.css';
+import { supabase } from './supabaseClient';
 
 // Owner-provided affiliate tags (site will use these)
 const AMAZON_AFFILIATE_TAG = 'our-affiliate-21';
@@ -33,33 +34,6 @@ function bmiFrom(weightKg, heightCm) {
   const bmi = Number(weightKg) / (h * h);
   if (!isFinite(bmi)) return null;
   return Math.round(bmi * 10) / 10;
-}
-
-// Note: Gemini integration code remains in the project but there is no UI to paste keys.
-async function analyzeWithGemini({ apiKey, promptText, image }) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
-  const parts = [{ text: promptText }];
-  if (image && image.data && image.mimeType) {
-    parts.push({
-      inlineData: {
-        mimeType: image.mimeType,
-        data: image.data,
-      },
-    });
-  }
-  const body = { contents: [{ role: 'user', parts }] };
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`Gemini API error: ${res.status}`);
-  const data = await res.json();
-  const text = (data?.candidates?.[0]?.content?.parts || [])
-    .map((p) => p.text)
-    .filter(Boolean)
-    .join('\n');
-  return text || '';
 }
 
 function localPrecautions({ skinType, hairType, age, bmi }) {
@@ -137,6 +111,14 @@ function SectionTitle({ children }) {
 export default function App() {
   const [view, setView] = useState('home');
 
+  // Auth
+  const [user, setUser] = useState(null);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
+
+  // Form
   const [skinType, setSkinType] = useState('oily');
   const [hairInterested, setHairInterested] = useState(false);
   const [hairType, setHairType] = useState('oily');
@@ -147,6 +129,7 @@ export default function App() {
   const [gender, setGender] = useState('female');
 
   const [photoPreview, setPhotoPreview] = useState('');
+  const [photoFile, setPhotoFile] = useState(null);
   const [photoData, setPhotoData] = useState(null);
 
   const [wantProducts, setWantProducts] = usePersistedState('want_products', true);
@@ -159,11 +142,64 @@ export default function App() {
   const [error, setError] = useState('');
   const [aiText, setAiText] = useState('');
 
+  const [history, setHistory] = useState([]);
+
   const bmi = useMemo(() => bmiFrom(Number(weightKg), Number(heightCm)), [weightKg, heightCm]);
+
+  useEffect(() => {
+    // Initialize auth state from Supabase if configured
+    let mounted = true;
+    async function init() {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const session = data?.session;
+        if (session?.user && mounted) setUser(session.user);
+        supabase.auth.onAuthStateChange((_event, session) => {
+          if (mounted) setUser(session?.user ?? null);
+        });
+      } catch (e) {
+        // supabase not configured or network error
+      }
+    }
+    init();
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    if (user) fetchHistory();
+  }, [user]);
+
+  async function signup() {
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      const { data, error } = await supabase.auth.signUp({ email: authEmail, password: authPassword });
+      if (error) throw error;
+      alert('Sign-up successful. Please check your email to confirm (if your Supabase is configured that way).');
+      setAuthEmail(''); setAuthPassword('');
+    } catch (e) {
+      setAuthError(e.message || String(e));
+    } finally { setAuthLoading(false); }
+  }
+  async function login() {
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email: authEmail, password: authPassword });
+      if (error) throw error;
+      setAuthEmail(''); setAuthPassword('');
+    } catch (e) {
+      setAuthError(e.message || String(e));
+    } finally { setAuthLoading(false); }
+  }
+  async function logout() {
+    try { await supabase.auth.signOut(); setUser(null); setHistory([]); } catch {}
+  }
 
   function onPhotoChange(file) {
     if (!file) {
       setPhotoPreview('');
+      setPhotoFile(null);
       setPhotoData(null);
       return;
     }
@@ -177,6 +213,7 @@ export default function App() {
       }
     };
     reader.readAsDataURL(file);
+    setPhotoFile(file);
   }
 
   async function handleAnalyze() {
@@ -189,9 +226,7 @@ export default function App() {
       if (skinType === 'dry') concernHints.push('dryness, flakiness');
       if (hairInterested && hairType === 'dandruff') concernHints.push('dandruff');
       if (hairInterested && hairType === 'hairfall') concernHints.push('hairfall');
-      const prompt = `You are a dermatologist assistant. Analyze the provided details and image if present and respond in concise bullet points suitable for a layperson in India.\nUser details:\n- Skin type: ${skinType}\n- Age: ${age || 'n/a'}\n- Gender: ${gender}\n- Weight(kg): ${weightKg || 'n/a'}\n- Height(cm): ${heightCm || 'n/a'}\n- BMI: ${bmi ?? 'n/a'}\n- Blood group: ${bloodGroup || 'n/a'}\n- Hair interest: ${hairInterested ? 'yes' : 'no'}${hairInterested ? `, type: ${hairType}` : ''}\nPotential concerns to check: ${concernHints.join(', ') || 'general skin health'}.\nIf the image shows warning signs (bleeding moles, rapid spreading rashes, severe infections), clearly advise to see a dermatologist.\nReturn sections: 1) Likely causes 2) Precautions 3) Lifestyle 4) When to seek care.`;
 
-      // No API key UI is provided — local fallback advice will be used.
       const tips = localPrecautions({ skinType, hairType: hairInterested ? hairType : null, age: Number(age) || 0, bmi });
       const lines = [
         'Likely causes: based on inputs, barrier imbalance and common issues for your profile.',
@@ -205,6 +240,54 @@ export default function App() {
       setError(String(e.message || e));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function saveAnalysis() {
+    if (!user) { alert('Please log in to save your analysis.'); return; }
+    setLoading(true);
+    try {
+      let photo_url = null;
+      if (photoFile) {
+        // upload to bucket 'photos' path user.id/timestamp_filename
+        const filePath = `public/${user.id}/${Date.now()}_${photoFile.name}`;
+        const { data, error: upErr } = await supabase.storage.from('photos').upload(filePath, photoFile, { cacheControl: '3600', upsert: false });
+        if (upErr) throw upErr;
+        const { data: pub } = supabase.storage.from('photos').getPublicUrl(filePath);
+        photo_url = pub?.publicUrl || null;
+      }
+      const payload = {
+        user_id: user.id,
+        skin_type: skinType,
+        hair_type: hairInterested ? hairType : null,
+        age: age || null,
+        weight_kg: weightKg || null,
+        height_cm: heightCm || null,
+        bmi: bmi || null,
+        blood_group: bloodGroup || null,
+        gender,
+        description,
+        known_cause: knownCause,
+        ai_text: aiText,
+        photo_url,
+      };
+      const { data: ins, error: insErr } = await supabase.from('analyses').insert([payload]).select();
+      if (insErr) throw insErr;
+      alert('Saved to your history.');
+      fetchHistory();
+    } catch (e) {
+      alert('Save failed: ' + (e.message || String(e)));
+    } finally { setLoading(false); }
+  }
+
+  async function fetchHistory() {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase.from('analyses').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50);
+      if (error) throw error;
+      setHistory(data || []);
+    } catch (e) {
+      console.error('history fetch', e);
     }
   }
 
@@ -231,6 +314,22 @@ export default function App() {
           <button className={`nav-btn ${view === 'home' ? 'active' : ''}`} onClick={() => setView('home')}>Home</button>
           <button className={`nav-btn ${view === 'limitations' ? 'active' : ''}`} onClick={() => setView('limitations')}>Safety & Limitations</button>
           <a className="nav-btn primary" href="#analyze" onClick={(e) => { e.preventDefault(); setView('home'); const el = document.getElementById('analyze'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }}>Start Analysis</a>
+
+          {user ? (
+            <>
+              <button className="nav-btn" onClick={() => setView('history')}>My History</button>
+              <button className="nav-btn" onClick={saveAnalysis}>Save Analysis</button>
+              <div className="nav-user">{user.email}</div>
+              <button className="nav-btn" onClick={logout}>Sign out</button>
+            </>
+          ) : (
+            <div className="auth-inline">
+              <input className="input" placeholder="email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} />
+              <input className="input" placeholder="password" type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} />
+              <button className="nav-btn" onClick={login} disabled={authLoading}>Login</button>
+              <button className="nav-btn" onClick={signup} disabled={authLoading}>Sign up</button>
+            </div>
+          )}
         </nav>
       </header>
 
@@ -514,6 +613,36 @@ export default function App() {
             <button className="nav-btn" onClick={() => setView('home')}>Back</button>
           </div>
         </main>
+      )}
+
+      {view === 'history' && (
+        <main className="panel">
+          <SectionTitle>Your saved analyses</SectionTitle>
+          <div className="card">
+            {user ? (
+              <div>
+                {history.length === 0 ? <div className="muted">No saved analyses yet.</div> : (
+                  <ul className="list">
+                    {history.map((h) => (
+                      <li key={h.id} style={{ marginBottom: 8 }}>
+                        <strong>{new Date(h.created_at).toLocaleString()}</strong>
+                        <div>Skin: {h.skin_type} {h.hair_type ? `• Hair: ${h.hair_type}` : ''}</div>
+                        {h.photo_url && <div><a href={h.photo_url} target="_blank" rel="noreferrer">View photo</a></div>}
+                        <div className="muted">{(h.ai_text || '').slice(0, 300)}</div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ) : (
+              <div className="muted">Please log in to see your saved analyses.</div>
+            )}
+          </div>
+        </main>
+      )}
+
+      {view === 'results' && (
+        <div style={{ display: 'none' }} />
       )}
 
       {view === 'limitations' && (
