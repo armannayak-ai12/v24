@@ -392,6 +392,16 @@ export default function App() {
         </nav>
       </header>
 
+      {adminSql && (
+        <main className="panel">
+          <div className="card">
+            <h3 className="card-title">Database setup required</h3>
+            <p className="muted">Your Supabase project is missing the required table. Run the SQL below in your Supabase SQL editor to create it:</p>
+            <pre style={{ whiteSpace: 'pre-wrap', background: '#f7faf9', padding: 12, borderRadius: 8, overflowX: 'auto' }}>{adminSql}</pre>
+          </div>
+        </main>
+      )}
+
       {view === 'auth' && (
         <main className="panel auth-panel">
           <div className="card" style={{ maxWidth: 560, margin: '40px auto' }}>
