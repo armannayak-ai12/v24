@@ -325,7 +325,14 @@ export default function App() {
       if (error) throw error;
       setHistory(data || []);
     } catch (e) {
-      console.error('history fetch', e);
+      // Better error handling: log detailed object and show message in console
+      try {
+        if (e && e.message) console.error('history fetch:', e.message, e);
+        else console.error('history fetch:', JSON.stringify(e));
+      } catch (logErr) {
+        console.error('history fetch - unknown error', e);
+      }
+      setError('Unable to load history. Please try again later.');
     }
   }
 
