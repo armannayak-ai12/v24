@@ -111,6 +111,11 @@ export default function App() {
   const [view, setView] = useState('home');
 
   // no auth UI — all history saved on device
+   const [localUserId] = usePersistedState('local_user_id', 'user_' + Math.random().toString(36).slice(2));
+
+  // Photo
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoData, setPhotoData] = useState(null); // { data: base64, mimeType }
 
   // Form
   const [skinType, setSkinType] = useState('oily');
