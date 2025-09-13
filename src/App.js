@@ -110,18 +110,6 @@ function SectionTitle({ children }) {
 export default function App() {
   const [view, setView] = useState('home');
 
-  // Local-only user identifier for device storage
-  const [localUserId, setLocalUserId] = useState(() => {
-    try {
-      const existing = localStorage.getItem('local_user_id');
-      if (existing) return existing;
-      const id = 'local_' + Math.random().toString(36).slice(2,9);
-      localStorage.setItem('local_user_id', id);
-      return id;
-    } catch {
-      return 'local_default';
-    }
-  });
   // no auth UI — all history saved on device
 
   // Form
@@ -135,8 +123,6 @@ export default function App() {
   const [gender, setGender] = useState('female');
 
   const [photoPreview, setPhotoPreview] = useState('');
-  const [photoFile, setPhotoFile] = useState(null);
-  const [photoData, setPhotoData] = useState(null);
 
   const [wantProducts, setWantProducts] = usePersistedState('want_products', true);
   const [budget, setBudget] = usePersistedState('budget', 800);
