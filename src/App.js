@@ -333,7 +333,14 @@ export default function App() {
       } catch (logErr) {
         console.error('history fetch - unknown error', e);
       }
-      setError('Unable to load history. Please try again later.');
+      const msg = (e && (e.message || e.msg)) || String(e);
+      if (typeof msg === 'string' && (msg.toLowerCase().includes('could not find the table') || msg.toLowerCase().includes("relation \"analyses\" does not exist"))) {
+        const sql = `-- Run this in Supabase SQL editor to create the analyses table\ncreate extension if not exists pgcrypto;\ncreate table if not exists analyses (\n  id uuid primary key default gen_random_uuid(),\n  user_id text,\n  skin_type text,\n  hair_type text,\n  age int,\n  weight_kg numeric,\n  height_cm numeric,\n  bmi numeric,\n  blood_group text,\n  gender text,\n  description text,\n  known_cause text,\n  ai_text text,\n  photo_url text,\n  created_at timestamptz default now()\n);`;
+        setAdminSql(sql);
+        setError('Database table "analyses" not found. See SQL below to create it in your Supabase project.');
+      } else {
+        setError('Unable to load history. Please try again later.');
+      }
     }
   }
 
