@@ -153,6 +153,7 @@ export default function App() {
   const [budget, setBudget] = usePersistedState('budget', 800);
 
   const [knownCause, setKnownCause] = useState('');
+  const [description, setDescription] = usePersistedState('user_description', '');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -307,6 +308,9 @@ export default function App() {
                   </>
                 )}
 
+                <label className="field-label">Brief description (optional)</label>
+                <textarea className="input" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe your concern briefly (e.g. started after a product, seasonal flare, etc.)" />
+
                 <div className="upload-box">
                   <label className="field-label">Add a clear photo (optional)</label>
                   <input type="file" accept="image/*" onChange={(e) => onPhotoChange(e.target.files?.[0])} />
@@ -360,6 +364,13 @@ export default function App() {
             <h3 className="card-title">Do you already know a cause?</h3>
             <input className="input" type="text" value={knownCause} onChange={(e) => setKnownCause(e.target.value)} placeholder="e.g. hard water, new product, stress" />
           </div>
+
+          {description && (
+            <div className="card">
+              <h3 className="card-title">Your description</h3>
+              <div className="muted">{description}</div>
+            </div>
+          )}
 
           <div className="grid-2">
             <div className="card">
