@@ -100,7 +100,16 @@ function productQueries({ skinType, hairType, budget }) {
     items.push({ label: 'Lightweight conditioner', q: 'lightweight conditioner silicone free' });
     if (tier !== 'budget') items.push({ label: 'Hair mask weekly', q: 'repair hair mask ceramide protein' });
   }
-  return items;
+
+  // Owner-provided direct product links (always suggested)
+  const ownerLinks = [
+    { label: 'Ultra Matte Sunscreen Gel', href: 'https://thedermaco.com/product/ultra-matte-sunscreen-gel' },
+    { label: '25% AHA + 2% BHA Peeling Solution', href: 'https://discoverpilgrim.com/products/25-aha-2-bha-5-pha-peeling-solution' },
+    { label: 'Kojic Acid + Alpha Arbutin Serum', href: 'https://thedermaco.com/product/2-kojic-acid-face-serum-with-1-alpha-arbutin-niacinamide-30-ml' },
+    { label: 'Salicylic Acid Oil-Free Moisturizer', href: 'https://thedermaco.com/product/1-salicylic-acid-oil-free-moisturizer-for-face-with-oat-extract-50g' },
+  ];
+
+  return items.concat(ownerLinks);
 }
 
 function SectionTitle({ children }) {
@@ -546,11 +555,17 @@ export default function App() {
               <h3 className="card-title">Product finder (budget ₹{Number(budget) || 0} per item)</h3>
               <ul className="products">
                 {productList.map((p) => (
-                  <li key={p.q} className="product-item">
+                  <li key={p.q || p.href || p.label} className="product-item">
                     <div className="product-name">{p.label}</div>
                     <div className="product-links">
-                      <a className="link" target="_blank" rel="noreferrer" href={buildAffiliateLink('amazon', p.q)}>Amazon</a>
-                      <a className="link" target="_blank" rel="noreferrer" href={buildAffiliateLink('flipkart', p.q)}>Flipkart</a>
+                      {p.href ? (
+                        <a className="link" target="_blank" rel="noreferrer" href={p.href}>View product</a>
+                      ) : (
+                        <>
+                          <a className="link" target="_blank" rel="noreferrer" href={buildAffiliateLink('amazon', p.q)}>Amazon</a>
+                          <a className="link" target="_blank" rel="noreferrer" href={buildAffiliateLink('flipkart', p.q)}>Flipkart</a>
+                        </>
+                      )}
                     </div>
                   </li>
                 ))}
