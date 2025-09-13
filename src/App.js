@@ -396,22 +396,24 @@ export default function App() {
           <div className="card" style={{ maxWidth: 560, margin: '40px auto' }}>
             <h2 className="section-title">Welcome — login or create an account</h2>
             {authError && <div className="error-box">{authError}</div>}
-            <label className="field-label">Email</label>
-            <input className="input" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} />
-            <label className="field-label">Password</label>
-            <input className="input" type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button className="cta-btn" onClick={login} disabled={authLoading}>{authLoading ? 'Signing in…' : 'Login'}</button>
-              <button className="nav-btn" onClick={signup} disabled={authLoading}>Sign up</button>
-              <button className="nav-btn" onClick={() => {
-                // create a local guest session
-                const guestId = 'guest_' + Math.random().toString(36).slice(2,9);
-                const guestUser = { id: guestId, email: `guest@${guestId}.local` };
-                setUser(guestUser);
-                setIsGuest(true);
-                setView('home');
-              }}>Continue as guest</button>
-            </div>
+            <form onSubmit={(e) => { e.preventDefault(); login(); }}>
+              <label className="field-label">Email</label>
+              <input className="input" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} />
+              <label className="field-label">Password</label>
+              <input className="input" type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} />
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <button type="submit" className="cta-btn" disabled={authLoading}>{authLoading ? 'Signing in…' : 'Login'}</button>
+                <button type="button" className="nav-btn" onClick={signup} disabled={authLoading}>Sign up</button>
+                <button type="button" className="nav-btn" onClick={() => {
+                  // create a local guest session
+                  const guestId = 'guest_' + Math.random().toString(36).slice(2,9);
+                  const guestUser = { id: guestId, email: `guest@${guestId}.local` };
+                  setUser(guestUser);
+                  setIsGuest(true);
+                  setView('home');
+                }}>Continue as guest</button>
+              </div>
+            </form>
           </div>
         </main>
       )}
