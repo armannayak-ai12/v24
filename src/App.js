@@ -109,7 +109,7 @@ function SectionTitle({ children }) {
 }
 
 export default function App() {
-  const [view, setView] = useState('home');
+  const [view, setView] = useState('auth');
 
   // Auth
   const [user, setUser] = useState(null);
@@ -153,9 +153,13 @@ export default function App() {
       try {
         const { data } = await supabase.auth.getSession();
         const session = data?.session;
-        if (session?.user && mounted) setUser(session.user);
+        if (session?.user && mounted) { setUser(session.user); setView('home'); }
         supabase.auth.onAuthStateChange((_event, session) => {
-          if (mounted) setUser(session?.user ?? null);
+          if (mounted) {
+            setUser(session?.user ?? null);
+            if (session?.user) setView('home');
+            else setView('auth');
+          }
         });
       } catch (e) {
         // supabase not configured or network error
@@ -193,7 +197,7 @@ export default function App() {
     } finally { setAuthLoading(false); }
   }
   async function logout() {
-    try { await supabase.auth.signOut(); setUser(null); setHistory([]); } catch {}
+    try { await supabase.auth.signOut(); setUser(null); setHistory([]); setView('auth'); } catch {}
   }
 
   function onPhotoChange(file) {
@@ -323,15 +327,30 @@ export default function App() {
               <button className="nav-btn" onClick={logout}>Sign out</button>
             </>
           ) : (
-            <div className="auth-inline">
-              <input className="input" placeholder="email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} />
-              <input className="input" placeholder="password" type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} />
-              <button className="nav-btn" onClick={login} disabled={authLoading}>Login</button>
-              <button className="nav-btn" onClick={signup} disabled={authLoading}>Sign up</button>
+            <div>
+              <button className="nav-btn" onClick={() => setView('auth')}>Login / Sign up</button>
             </div>
           )}
         </nav>
       </header>
+
+      {view === 'auth' && (
+        <main className="panel auth-panel">
+          <div className="card" style={{ maxWidth: 560, margin: '40px auto' }}>
+            <h2 className="section-title">Welcome — login or create an account</h2>
+            {authError && <div className="error-box">{authError}</div>}
+            <label className="field-label">Email</label>
+            <input className="input" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} />
+            <label className="field-label">Password</label>
+            <input className="input" type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button className="cta-btn" onClick={login} disabled={authLoading}>{authLoading ? 'Signing in…' : 'Login'}</button>
+              <button className="nav-btn" onClick={signup} disabled={authLoading}>Sign up</button>
+              <button className="nav-btn" onClick={() => setView('home')}>Continue as guest</button>
+            </div>
+          </div>
+        </main>
+      )}
 
       {view === 'home' && (
         <main className="home">
