@@ -113,6 +113,7 @@ export default function App() {
 
   // Auth
   const [user, setUser] = useState(null);
+  const [isGuest, setIsGuest] = useState(false);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
@@ -153,10 +154,11 @@ export default function App() {
       try {
         const { data } = await supabase.auth.getSession();
         const session = data?.session;
-        if (session?.user && mounted) { setUser(session.user); setView('home'); }
+        if (session?.user && mounted) { setUser(session.user); setIsGuest(false); setView('home'); }
         supabase.auth.onAuthStateChange((_event, session) => {
           if (mounted) {
             setUser(session?.user ?? null);
+            setIsGuest(false);
             if (session?.user) setView('home');
             else setView('auth');
           }
@@ -197,7 +199,19 @@ export default function App() {
     } finally { setAuthLoading(false); }
   }
   async function logout() {
-    try { await supabase.auth.signOut(); setUser(null); setHistory([]); setView('auth'); } catch {}
+    try {
+      if (isGuest) {
+        setUser(null);
+        setIsGuest(false);
+        setHistory([]);
+        setView('auth');
+        return;
+      }
+      await supabase.auth.signOut();
+      setUser(null);
+      setHistory([]);
+      setView('auth');
+    } catch {}
   }
 
   function onPhotoChange(file) {
@@ -251,16 +265,8 @@ export default function App() {
     if (!user) { alert('Please log in to save your analysis.'); return; }
     setLoading(true);
     try {
-      let photo_url = null;
-      if (photoFile) {
-        // upload to bucket 'photos' path user.id/timestamp_filename
-        const filePath = `public/${user.id}/${Date.now()}_${photoFile.name}`;
-        const { data, error: upErr } = await supabase.storage.from('photos').upload(filePath, photoFile, { cacheControl: '3600', upsert: false });
-        if (upErr) throw upErr;
-        const { data: pub } = supabase.storage.from('photos').getPublicUrl(filePath);
-        photo_url = pub?.publicUrl || null;
-      }
       const payload = {
+        id: 'local_' + Date.now(),
         user_id: user.id,
         skin_type: skinType,
         hair_type: hairInterested ? hairType : null,
@@ -273,8 +279,30 @@ export default function App() {
         description,
         known_cause: knownCause,
         ai_text: aiText,
-        photo_url,
+        photo_url: null,
+        created_at: new Date().toISOString(),
       };
+
+      if (isGuest) {
+        // store locally
+        const key = 'guest_analyses_' + user.id;
+        const existing = JSON.parse(localStorage.getItem(key) || '[]');
+        existing.unshift(payload);
+        localStorage.setItem(key, JSON.stringify(existing));
+        alert('Saved locally to your browser history. Sign up to save it in your account.');
+        fetchHistory();
+        return;
+      }
+
+      let photo_url = null;
+      if (photoFile) {
+        const filePath = `public/${user.id}/${Date.now()}_${photoFile.name}`;
+        const { data, error: upErr } = await supabase.storage.from('photos').upload(filePath, photoFile, { cacheControl: '3600', upsert: false });
+        if (upErr) throw upErr;
+        const { data: pub } = supabase.storage.from('photos').getPublicUrl(filePath);
+        photo_url = pub?.publicUrl || null;
+      }
+      payload.photo_url = photo_url;
       const { data: ins, error: insErr } = await supabase.from('analyses').insert([payload]).select();
       if (insErr) throw insErr;
       alert('Saved to your history.');
@@ -287,6 +315,12 @@ export default function App() {
   async function fetchHistory() {
     if (!user) return;
     try {
+      if (isGuest) {
+        const key = 'guest_analyses_' + user.id;
+        const existing = JSON.parse(localStorage.getItem(key) || '[]');
+        setHistory(existing || []);
+        return;
+      }
       const { data, error } = await supabase.from('analyses').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50);
       if (error) throw error;
       setHistory(data || []);
@@ -346,7 +380,14 @@ export default function App() {
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
               <button className="cta-btn" onClick={login} disabled={authLoading}>{authLoading ? 'Signing in…' : 'Login'}</button>
               <button className="nav-btn" onClick={signup} disabled={authLoading}>Sign up</button>
-              <button className="nav-btn" onClick={() => setView('home')}>Continue as guest</button>
+              <button className="nav-btn" onClick={() => {
+                // create a local guest session
+                const guestId = 'guest_' + Math.random().toString(36).slice(2,9);
+                const guestUser = { id: guestId, email: `guest@${guestId}.local` };
+                setUser(guestUser);
+                setIsGuest(true);
+                setView('home');
+              }}>Continue as guest</button>
             </div>
           </div>
         </main>
