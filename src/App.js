@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import './App.css';
-import { supabase } from './supabaseClient';
 
 // Owner-provided affiliate tags (site will use these)
 const AMAZON_AFFILIATE_TAG = 'our-affiliate-21';
@@ -109,15 +108,21 @@ function SectionTitle({ children }) {
 }
 
 export default function App() {
-  const [view, setView] = useState('auth');
+  const [view, setView] = useState('home');
 
-  // Auth
-  const [user, setUser] = useState(null);
-  const [isGuest, setIsGuest] = useState(false);
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState('');
+  // Local-only user identifier for device storage
+  const [localUserId, setLocalUserId] = useState(() => {
+    try {
+      const existing = localStorage.getItem('local_user_id');
+      if (existing) return existing;
+      const id = 'local_' + Math.random().toString(36).slice(2,9);
+      localStorage.setItem('local_user_id', id);
+      return id;
+    } catch {
+      return 'local_default';
+    }
+  });
+  // no auth UI — all history saved on device
 
   // Form
   const [skinType, setSkinType] = useState('oily');
@@ -148,95 +153,12 @@ export default function App() {
   const bmi = useMemo(() => bmiFrom(Number(weightKg), Number(heightCm)), [weightKg, heightCm]);
 
   useEffect(() => {
-    // Initialize auth state from Supabase if configured
-    let mounted = true;
-    async function init() {
-      try {
-        const { data } = await supabase.auth.getSession();
-        const session = data?.session;
-        if (session?.user && mounted) { setUser(session.user); setIsGuest(false); setView('home'); }
-        supabase.auth.onAuthStateChange((_event, session) => {
-          if (mounted) {
-            setUser(session?.user ?? null);
-            setIsGuest(false);
-            if (session?.user) setView('home');
-            else setView('auth');
-          }
-        });
-      } catch (e) {
-        // supabase not configured or network error
-      }
-    }
-    init();
-    return () => { mounted = false; };
-  }, []);
+    // on mount, load local history for this device user
+    fetchHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localUserId]);
 
-  useEffect(() => {
-    if (user) fetchHistory();
-  }, [user]);
-
-  function validateEmail(email) {
-    return typeof email === 'string' && email.includes('@') && email.includes('.');
-  }
-
-  async function signup() {
-    setAuthError('');
-    if (!authEmail || !authPassword) {
-      setAuthError('Please provide both email and password.');
-      return;
-    }
-    if (!validateEmail(authEmail)) {
-      setAuthError('Please enter a valid email address.');
-      return;
-    }
-    if (authPassword.length < 6) {
-      setAuthError('Password must be at least 6 characters.');
-      return;
-    }
-    setAuthLoading(true);
-    try {
-      const { data, error } = await supabase.auth.signUp({ email: authEmail, password: authPassword });
-      if (error) throw error;
-      alert('Sign-up initiated. Please check your email to confirm (if your Supabase is configured that way).');
-      setAuthEmail(''); setAuthPassword('');
-    } catch (e) {
-      setAuthError(e.message || String(e));
-    } finally { setAuthLoading(false); }
-  }
-  async function login() {
-    setAuthError('');
-    if (!authEmail || !authPassword) {
-      setAuthError('Please provide both email and password.');
-      return;
-    }
-    if (!validateEmail(authEmail)) {
-      setAuthError('Please enter a valid email address.');
-      return;
-    }
-    setAuthLoading(true);
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email: authEmail, password: authPassword });
-      if (error) throw error;
-      setAuthEmail(''); setAuthPassword('');
-    } catch (e) {
-      setAuthError(e.message || String(e));
-    } finally { setAuthLoading(false); }
-  }
-  async function logout() {
-    try {
-      if (isGuest) {
-        setUser(null);
-        setIsGuest(false);
-        setHistory([]);
-        setView('auth');
-        return;
-      }
-      await supabase.auth.signOut();
-      setUser(null);
-      setHistory([]);
-      setView('auth');
-    } catch {}
-  }
+  // No auth functions — all data saved to device storage only
 
   function onPhotoChange(file) {
     if (!file) {
@@ -286,12 +208,11 @@ export default function App() {
   }
 
   async function saveAnalysis() {
-    if (!user) { alert('Please log in to save your analysis.'); return; }
     setLoading(true);
     try {
       const payload = {
         id: 'local_' + Date.now(),
-        user_id: user.id,
+        user_id: localUserId,
         skin_type: skinType,
         hair_type: hairInterested ? hairType : null,
         age: age || null,
@@ -303,76 +224,29 @@ export default function App() {
         description,
         known_cause: knownCause,
         ai_text: aiText,
-        photo_url: null,
+        photo_data: photoPreview || null,
         created_at: new Date().toISOString(),
       };
-
-      if (isGuest) {
-        // store locally
-        const key = 'guest_analyses_' + user.id;
-        const existing = JSON.parse(localStorage.getItem(key) || '[]');
-        existing.unshift(payload);
-        localStorage.setItem(key, JSON.stringify(existing));
-        alert('Saved locally to your browser history. Sign up to save it in your account.');
-        fetchHistory();
-        return;
-      }
-
-      let photo_url = null;
-      if (photoFile) {
-        const filePath = `public/${user.id}/${Date.now()}_${photoFile.name}`;
-        const { data, error: upErr } = await supabase.storage.from('photos').upload(filePath, photoFile, { cacheControl: '3600', upsert: false });
-        if (upErr) throw upErr;
-        const { data: pub } = supabase.storage.from('photos').getPublicUrl(filePath);
-        photo_url = pub?.publicUrl || null;
-      }
-      payload.photo_url = photo_url;
-      const { data: ins, error: insErr } = await supabase.from('analyses').insert([payload]).select();
-      if (insErr) throw insErr;
-      alert('Saved to your history.');
+      const key = 'analyses_' + localUserId;
+      const existing = JSON.parse(localStorage.getItem(key) || '[]');
+      existing.unshift(payload);
+      localStorage.setItem(key, JSON.stringify(existing));
+      alert('Saved locally to your device.');
       fetchHistory();
     } catch (e) {
-      const msg = (e && (e.message || e.msg)) || String(e);
       console.error('saveAnalysis error', e);
-      if (typeof msg === 'string' && (msg.toLowerCase().includes('could not find the table') || msg.toLowerCase().includes("relation \"analyses\" does not exist"))) {
-        const sql = `-- Run this in Supabase SQL editor to create the analyses table\ncreate extension if not exists pgcrypto;\ncreate table if not exists analyses (\n  id uuid primary key default gen_random_uuid(),\n  user_id text,\n  skin_type text,\n  hair_type text,\n  age int,\n  weight_kg numeric,\n  height_cm numeric,\n  bmi numeric,\n  blood_group text,\n  gender text,\n  description text,\n  known_cause text,\n  ai_text text,\n  photo_url text,\n  created_at timestamptz default now()\n);`;
-        
-        alert('Save failed because the database table "analyses" is missing. Check the SQL shown in the app to create the table.');
-        setError('Database table "analyses" not found. See SQL below to create it in your Supabase project.');
-      } else {
-        alert('Save failed: ' + (e.message || String(e)));
-      }
+      alert('Save failed locally.');
     } finally { setLoading(false); }
   }
 
   async function fetchHistory() {
-    if (!user) return;
     try {
-      if (isGuest) {
-        const key = 'guest_analyses_' + user.id;
-        const existing = JSON.parse(localStorage.getItem(key) || '[]');
-        setHistory(existing || []);
-        return;
-      }
-      const { data, error } = await supabase.from('analyses').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50);
-      if (error) throw error;
-      setHistory(data || []);
+      const key = 'analyses_' + localUserId;
+      const existing = JSON.parse(localStorage.getItem(key) || '[]');
+      setHistory(existing || []);
     } catch (e) {
-      // Better error handling: log detailed object and show message in console
-      try {
-        if (e && e.message) console.error('history fetch:', e.message, e);
-        else console.error('history fetch:', JSON.stringify(e));
-      } catch (logErr) {
-        console.error('history fetch - unknown error', e);
-      }
-      const msg = (e && (e.message || e.msg)) || String(e);
-      if (typeof msg === 'string' && (msg.toLowerCase().includes('could not find the table') || msg.toLowerCase().includes("relation \"analyses\" does not exist"))) {
-        const sql = `-- Run this in Supabase SQL editor to create the analyses table\ncreate extension if not exists pgcrypto;\ncreate table if not exists analyses (\n  id uuid primary key default gen_random_uuid(),\n  user_id text,\n  skin_type text,\n  hair_type text,\n  age int,\n  weight_kg numeric,\n  height_cm numeric,\n  bmi numeric,\n  blood_group text,\n  gender text,\n  description text,\n  known_cause text,\n  ai_text text,\n  photo_url text,\n  created_at timestamptz default now()\n);`;
-        
-        setError('Database table "analyses" not found. See SQL below to create it in your Supabase project.');
-      } else {
-        setError('Unable to load history. Please try again later.');
-      }
+      console.error('history fetch', e);
+      setError('Unable to load history.');
     }
   }
 
@@ -400,47 +274,13 @@ export default function App() {
           <button className={`nav-btn ${view === 'limitations' ? 'active' : ''}`} onClick={() => setView('limitations')}>Safety & Limitations</button>
           <a className="nav-btn primary" href="#analyze" onClick={(e) => { e.preventDefault(); setView('home'); const el = document.getElementById('analyze'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }}>Start Analysis</a>
 
-          {user ? (
             <>
               <button className="nav-btn" onClick={() => setView('history')}>My History</button>
               <button className="nav-btn" onClick={saveAnalysis}>Save Analysis</button>
-              <div className="nav-user">{user.email}</div>
-              <button className="nav-btn" onClick={logout}>Sign out</button>
             </>
-          ) : (
-            <div>
-              <button className="nav-btn" onClick={() => setView('auth')}>Login / Sign up</button>
-            </div>
-          )}
         </nav>
       </header>
 
-      {view === 'auth' && (
-        <main className="panel auth-panel">
-          <div className="card" style={{ maxWidth: 560, margin: '40px auto' }}>
-            <h2 className="section-title">Welcome — login or create an account</h2>
-            {authError && <div className="error-box">{authError}</div>}
-            <form onSubmit={(e) => { e.preventDefault(); login(); }}>
-              <label className="field-label">Email</label>
-              <input className="input" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} />
-              <label className="field-label">Password</label>
-              <input className="input" type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} />
-              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <button type="submit" className="cta-btn" disabled={authLoading}>{authLoading ? 'Signing in…' : 'Login'}</button>
-                <button type="button" className="nav-btn" onClick={signup} disabled={authLoading}>Sign up</button>
-                <button type="button" className="nav-btn" onClick={() => {
-                  // create a local guest session
-                  const guestId = 'guest_' + Math.random().toString(36).slice(2,9);
-                  const guestUser = { id: guestId, email: `guest@${guestId}.local` };
-                  setUser(guestUser);
-                  setIsGuest(true);
-                  setView('home');
-                }}>Continue as guest</button>
-              </div>
-            </form>
-          </div>
-        </main>
-      )}
 
       {view === 'home' && (
         <main className="home">
@@ -728,7 +568,6 @@ export default function App() {
         <main className="panel">
           <SectionTitle>Your saved analyses</SectionTitle>
           <div className="card">
-            {user ? (
               <div>
                 {history.length === 0 ? <div className="muted">No saved analyses yet.</div> : (
                   <ul className="list">
@@ -736,16 +575,13 @@ export default function App() {
                       <li key={h.id} style={{ marginBottom: 8 }}>
                         <strong>{new Date(h.created_at).toLocaleString()}</strong>
                         <div>Skin: {h.skin_type} {h.hair_type ? `• Hair: ${h.hair_type}` : ''}</div>
-                        {h.photo_url && <div><a href={h.photo_url} target="_blank" rel="noreferrer">View photo</a></div>}
+                        {h.photo_data && <div><img src={h.photo_data} alt="analysis" style={{ maxWidth: 180, display: 'block', marginTop: 6 }} /></div>}
                         <div className="muted">{(h.ai_text || '').slice(0, 300)}</div>
                       </li>
                     ))}
                   </ul>
                 )}
               </div>
-            ) : (
-              <div className="muted">Please log in to see your saved analyses.</div>
-            )}
           </div>
         </main>
       )}
