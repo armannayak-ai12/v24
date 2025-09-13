@@ -142,7 +142,6 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [aiText, setAiText] = useState('');
-  const [adminSql, setAdminSql] = useState('');
 
   const [history, setHistory] = useState([]);
 
@@ -313,7 +312,7 @@ export default function App() {
       console.error('saveAnalysis error', e);
       if (typeof msg === 'string' && (msg.toLowerCase().includes('could not find the table') || msg.toLowerCase().includes("relation \"analyses\" does not exist"))) {
         const sql = `-- Run this in Supabase SQL editor to create the analyses table\ncreate extension if not exists pgcrypto;\ncreate table if not exists analyses (\n  id uuid primary key default gen_random_uuid(),\n  user_id text,\n  skin_type text,\n  hair_type text,\n  age int,\n  weight_kg numeric,\n  height_cm numeric,\n  bmi numeric,\n  blood_group text,\n  gender text,\n  description text,\n  known_cause text,\n  ai_text text,\n  photo_url text,\n  created_at timestamptz default now()\n);`;
-        setAdminSql(sql);
+        
         alert('Save failed because the database table "analyses" is missing. Check the SQL shown in the app to create the table.');
         setError('Database table "analyses" not found. See SQL below to create it in your Supabase project.');
       } else {
@@ -345,7 +344,7 @@ export default function App() {
       const msg = (e && (e.message || e.msg)) || String(e);
       if (typeof msg === 'string' && (msg.toLowerCase().includes('could not find the table') || msg.toLowerCase().includes("relation \"analyses\" does not exist"))) {
         const sql = `-- Run this in Supabase SQL editor to create the analyses table\ncreate extension if not exists pgcrypto;\ncreate table if not exists analyses (\n  id uuid primary key default gen_random_uuid(),\n  user_id text,\n  skin_type text,\n  hair_type text,\n  age int,\n  weight_kg numeric,\n  height_cm numeric,\n  bmi numeric,\n  blood_group text,\n  gender text,\n  description text,\n  known_cause text,\n  ai_text text,\n  photo_url text,\n  created_at timestamptz default now()\n);`;
-        setAdminSql(sql);
+        
         setError('Database table "analyses" not found. See SQL below to create it in your Supabase project.');
       } else {
         setError('Unable to load history. Please try again later.');
@@ -391,16 +390,6 @@ export default function App() {
           )}
         </nav>
       </header>
-
-      {adminSql && (
-        <main className="panel">
-          <div className="card">
-            <h3 className="card-title">Database setup required</h3>
-            <p className="muted">Your Supabase project is missing the required table. Run the SQL below in your Supabase SQL editor to create it:</p>
-            <pre style={{ whiteSpace: 'pre-wrap', background: '#f7faf9', padding: 12, borderRadius: 8, overflowX: 'auto' }}>{adminSql}</pre>
-          </div>
-        </main>
-      )}
 
       {view === 'auth' && (
         <main className="panel auth-panel">
