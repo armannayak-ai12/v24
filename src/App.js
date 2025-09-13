@@ -175,21 +175,45 @@ export default function App() {
     if (user) fetchHistory();
   }, [user]);
 
+  function validateEmail(email) {
+    return typeof email === 'string' && email.includes('@') && email.includes('.');
+  }
+
   async function signup() {
-    setAuthLoading(true);
     setAuthError('');
+    if (!authEmail || !authPassword) {
+      setAuthError('Please provide both email and password.');
+      return;
+    }
+    if (!validateEmail(authEmail)) {
+      setAuthError('Please enter a valid email address.');
+      return;
+    }
+    if (authPassword.length < 6) {
+      setAuthError('Password must be at least 6 characters.');
+      return;
+    }
+    setAuthLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({ email: authEmail, password: authPassword });
       if (error) throw error;
-      alert('Sign-up successful. Please check your email to confirm (if your Supabase is configured that way).');
+      alert('Sign-up initiated. Please check your email to confirm (if your Supabase is configured that way).');
       setAuthEmail(''); setAuthPassword('');
     } catch (e) {
       setAuthError(e.message || String(e));
     } finally { setAuthLoading(false); }
   }
   async function login() {
-    setAuthLoading(true);
     setAuthError('');
+    if (!authEmail || !authPassword) {
+      setAuthError('Please provide both email and password.');
+      return;
+    }
+    if (!validateEmail(authEmail)) {
+      setAuthError('Please enter a valid email address.');
+      return;
+    }
+    setAuthLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email: authEmail, password: authPassword });
       if (error) throw error;
