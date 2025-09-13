@@ -142,6 +142,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [aiText, setAiText] = useState('');
+  const [adminSql, setAdminSql] = useState('');
 
   const [history, setHistory] = useState([]);
 
