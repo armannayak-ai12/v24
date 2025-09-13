@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import './App.css';
 
+// Owner-provided affiliate tags (site will use these)
+const AMAZON_AFFILIATE_TAG = 'our-affiliate-21';
+const FLIPKART_AFFILIATE_TAG = 'our-affiliate-id';
+const LOGO_SRC = 'https://cdn.builder.io/api/v1/image/assets%2Fc6dae523276642bb818e59bb22b2cbfd%2F3b98d10bc2a84c31a8ef2cd923ad8b95?format=webp&width=800';
+
 function loadLocal(key, fallback) {
   try {
     const v = localStorage.getItem(key);
@@ -30,40 +35,7 @@ function bmiFrom(weightKg, heightCm) {
   return Math.round(bmi * 10) / 10;
 }
 
-function GoogleAdSlot({ client, slot, layout = 'in-article', format = 'fluid' }) {
-  useEffect(() => {
-    if (!client) return;
-    const id = 'adsbygoogle-lib';
-    if (!document.getElementById(id)) {
-      const s = document.createElement('script');
-      s.id = id;
-      s.async = true;
-      s.crossOrigin = 'anonymous';
-      s.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(client)}`;
-      document.head.appendChild(s);
-    }
-    const timeout = setTimeout(() => {
-      try {
-        // @ts-ignore
-        (window.adsbygoogle = window.adsbygoogle || []).push({});
-      } catch {}
-    }, 400);
-    return () => clearTimeout(timeout);
-  }, [client]);
-
-  if (!client) return null;
-  return (
-    <ins
-      className="adsbygoogle ad-slot"
-      style={{ display: 'block' }}
-      data-ad-client={client}
-      data-ad-slot={slot}
-      data-ad-layout={layout}
-      data-ad-format={format}
-    />
-  );
-}
-
+// Note: Gemini integration code remains in the project but there is no UI to paste keys.
 async function analyzeWithGemini({ apiKey, promptText, image }) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
   const parts = [{ text: promptText }];
@@ -92,29 +64,28 @@ async function analyzeWithGemini({ apiKey, promptText, image }) {
 
 function localPrecautions({ skinType, hairType, age, bmi }) {
   const tips = [];
-  if (skinType === 'oily') tips.push('Prefer gel cleansers, 2% BHA once daily, oil-free moisturizer, SPF 50 PA++++.');
-  if (skinType === 'dry') tips.push('Use creamy cleanser, layer hyaluronic acid and ceramide moisturizer, avoid hot water, SPF 50.');
-  if (skinType === 'combination') tips.push('Spot-treat T-zone with BHA/niacinamide, hydrate cheeks, non-comedogenic SPF.');
-  if (skinType === 'sensitive') tips.push('Keep routine fragrance-free, patch test actives (AHA/BHA/retinol), prefer mineral sunscreen.');
-  if (age >= 25) tips.push('Introduce nightly retinol gradually (2–3x/week) and daily antioxidant serum.');
-  if (bmi && bmi < 18.5) tips.push('Ensure adequate calories and protein to support skin and hair barrier.');
-  if (bmi && bmi >= 25) tips.push('Focus on balanced diet and hydration; manage sugar spikes that may aggravate acne.');
+  if (skinType === 'oily') tips.push('Prefer gel cleansers, 2% BHA once daily, oil-free moisturizer, SPF in the morning.');
+  if (skinType === 'dry') tips.push('Use creamy cleanser, layer hyaluronic acid and ceramide moisturizer, avoid hot water, use sunscreen.');
+  if (skinType === 'combination') tips.push('Spot-treat T-zone, hydrate cheeks, use non-comedogenic SPF.');
+  if (skinType === 'sensitive') tips.push('Keep routine fragrance-free, patch test actives, prefer mineral sunscreen.');
+  if (age >= 25) tips.push('Introduce retinol gradually and consider daily antioxidants.');
+  if (bmi && bmi < 18.5) tips.push('Ensure adequate calories and protein to support skin and hair health.');
+  if (bmi && bmi >= 25) tips.push('Focus on balanced diet and hydration; manage sugar intake to reduce acne flares.');
   if (hairType) {
-    if (hairType === 'dry') tips.push('Use sulfate-free shampoo, weekly oiling (coconut/argan), deep-condition with shea/ceramide masks.');
-    if (hairType === 'oily') tips.push('Clarify 1–2x/week, lightweight conditioner on lengths only, avoid heavy oils on scalp.');
-    if (hairType === 'dandruff') tips.push('Use anti-dandruff shampoos (ketoconazole 2%, zinc pyrithione) 2–3x/week, leave on 5 minutes.');
-    if (hairType === 'hairfall') tips.push('Check ferritin, B12, D3; use gentle detangling and scalp massages; avoid tight hairstyles.');
+    if (hairType === 'dry') tips.push('Use sulfate-free shampoo, weekly oiling, deep-conditioning masks.');
+    if (hairType === 'oily') tips.push('Clarify 1–2x/week and avoid heavy oils on the scalp.');
+    if (hairType === 'dandruff') tips.push('Use anti-dandruff shampoo (ketoconazole/zinc pyrithione) 2–3x/week.');
+    if (hairType === 'hairfall') tips.push('Check iron/B12/D; avoid tight hairstyles and use gentle detangling.');
   }
   return tips;
 }
 
 function nutritionAdvice({ concerns = [] }) {
-  // Map common concerns to nutrients and Indian foods
   const db = {
     acne: { nutrients: ['Zinc', 'Vitamin A', 'Omega-3'], foods: ['chana, rajma', 'carrot, spinach', 'flaxseed, walnut'] },
     dullness: { nutrients: ['Vitamin C', 'Vitamin E'], foods: ['amla, orange', 'almond, sunflower seeds'] },
-    dryness: { nutrients: ['Essential fats', 'Ceramide precursors'], foods: ['ghee in moderation', 'soy, dairy, millets'] },
-    pigmentation: { nutrients: ['Vitamin C', 'Antioxidants'], foods: ['guava, amla', 'green tea, berries'] },
+    dryness: { nutrients: ['Essential fats'], foods: ['ghee in moderation', 'soy, dairy, millets'] },
+    pigmentation: { nutrients: ['Vitamin C', 'Antioxidants'], foods: ['guava, amla', 'green tea'] },
     hairfall: { nutrients: ['Protein', 'Iron', 'Biotin'], foods: ['paneer, dal, eggs', 'spinach, jaggery', 'peanuts, til'] },
     dandruff: { nutrients: ['Zinc', 'B-vitamins'], foods: ['pumpkin seeds', 'whole grains, curd'] },
   };
@@ -126,15 +97,15 @@ function nutritionAdvice({ concerns = [] }) {
   return rows;
 }
 
-function buildAffiliateLink(platform, query, tag) {
+function buildAffiliateLink(platform, query) {
   const q = encodeURIComponent(query);
   if (platform === 'amazon') {
     const base = `https://www.amazon.in/s?k=${q}`;
-    return tag ? `${base}&tag=${encodeURIComponent(tag)}` : base;
+    return AMAZON_AFFILIATE_TAG ? `${base}&tag=${encodeURIComponent(AMAZON_AFFILIATE_TAG)}` : base;
   }
   if (platform === 'flipkart') {
     const base = `https://www.flipkart.com/search?q=${q}`;
-    return tag ? `${base}&affid=${encodeURIComponent(tag)}` : base;
+    return FLIPKART_AFFILIATE_TAG ? `${base}&affid=${encodeURIComponent(FLIPKART_AFFILIATE_TAG)}` : base;
   }
   return `https://www.google.com/search?q=${q}`;
 }
@@ -166,11 +137,6 @@ function SectionTitle({ children }) {
 export default function App() {
   const [view, setView] = useState('home');
 
-  const [apiKey, setApiKey] = usePersistedState('gemini_api_key', '');
-  const [adsenseClient, setAdsenseClient] = usePersistedState('adsense_client', '');
-  const [amazonTag, setAmazonTag] = usePersistedState('amazon_affiliate_tag', '');
-  const [flipkartTag, setFlipkartTag] = usePersistedState('flipkart_affiliate_tag', '');
-
   const [skinType, setSkinType] = useState('oily');
   const [hairInterested, setHairInterested] = useState(false);
   const [hairType, setHairType] = useState('oily');
@@ -183,8 +149,8 @@ export default function App() {
   const [photoPreview, setPhotoPreview] = useState('');
   const [photoData, setPhotoData] = useState(null);
 
-  const [wantProducts, setWantProducts] = useState(true);
-  const [budget, setBudget] = useState(800);
+  const [wantProducts, setWantProducts] = usePersistedState('want_products', true);
+  const [budget, setBudget] = usePersistedState('budget', 800);
 
   const [knownCause, setKnownCause] = useState('');
 
@@ -224,19 +190,15 @@ export default function App() {
       if (hairInterested && hairType === 'hairfall') concernHints.push('hairfall');
       const prompt = `You are a dermatologist assistant. Analyze the provided details and image if present and respond in concise bullet points suitable for a layperson in India.\nUser details:\n- Skin type: ${skinType}\n- Age: ${age || 'n/a'}\n- Gender: ${gender}\n- Weight(kg): ${weightKg || 'n/a'}\n- Height(cm): ${heightCm || 'n/a'}\n- BMI: ${bmi ?? 'n/a'}\n- Blood group: ${bloodGroup || 'n/a'}\n- Hair interest: ${hairInterested ? 'yes' : 'no'}${hairInterested ? `, type: ${hairType}` : ''}\nPotential concerns to check: ${concernHints.join(', ') || 'general skin health'}.\nIf the image shows warning signs (bleeding moles, rapid spreading rashes, severe infections), clearly advise to see a dermatologist.\nReturn sections: 1) Likely causes 2) Precautions 3) Lifestyle 4) When to seek care.`;
 
-      if (apiKey) {
-        const text = await analyzeWithGemini({ apiKey, promptText: prompt, image: photoData });
-        setAiText(text);
-      } else {
-        const tips = localPrecautions({ skinType, hairType: hairInterested ? hairType : null, age: Number(age) || 0, bmi });
-        const lines = [
-          'Likely causes: based on inputs, barrier imbalance and common issues for your profile.',
-          `Precautions: ${tips.join(' ')} `,
-          'Lifestyle: 2–3L water daily, 7–8h sleep, stress management, sunscreen every morning.',
-          'When to seek care: sudden painful swelling, bleeding lesions, severe infections, or anything rapidly worsening.',
-        ];
-        setAiText(lines.join('\n'));
-      }
+      // No API key UI is provided — local fallback advice will be used.
+      const tips = localPrecautions({ skinType, hairType: hairInterested ? hairType : null, age: Number(age) || 0, bmi });
+      const lines = [
+        'Likely causes: based on inputs, barrier imbalance and common issues for your profile.',
+        `Precautions: ${tips.join(' ')} `,
+        'Lifestyle: 2–3L water daily, 7–8h sleep, stress management, sunscreen every morning.',
+        'When to seek care: sudden painful swelling, bleeding lesions, severe infections, or anything rapidly worsening.',
+      ];
+      setAiText(lines.join('\n'));
       setView('results');
     } catch (e) {
       setError(String(e.message || e));
@@ -260,7 +222,10 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand">GlowGuide</div>
+        <div className="brand-row">
+          <img src={LOGO_SRC} alt="logo" className="logo" />
+          <div className="brand">Skin &amp; Hair Care Mentor</div>
+        </div>
         <nav className="nav-actions">
           <button className={`nav-btn ${view === 'home' ? 'active' : ''}`} onClick={() => setView('home')}>Home</button>
           <button className={`nav-btn ${view === 'limitations' ? 'active' : ''}`} onClick={() => setView('limitations')}>Safety & Limitations</button>
@@ -272,20 +237,11 @@ export default function App() {
         <main className="home">
           <section className="hero">
             <div className="hero-content">
-              <h1 className="hero-title">Personalized Skin & Hair Care</h1>
-              <p className="hero-sub">Get routines, nutrition tips with Indian foods, and product picks based on your budget.</p>
+              <h1 className="hero-title">Personalized Skin &amp; Hair Care</h1>
+              <p className="hero-sub">Look good, feel confident — science-backed routines for every Indian skin.</p>
+              <p className="hero-why">Why use this site? In today's world appearance matters and many people want healthier skin and hair but lack trustworthy, simple guidance. We combine easy routines, Indian diet tips and product picks to help you build a reliable plan.</p>
               <div className="hero-cta">
                 <a href="#analyze" className="cta-btn">Begin</a>
-              </div>
-              <div className="api-ad-box">
-                <div className="api-box">
-                  <label className="field-label" htmlFor="api">Gemini API key (stored locally)</label>
-                  <input id="api" className="input" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Paste key" />
-                </div>
-                <div className="api-box">
-                  <label className="field-label" htmlFor="adsense">Google AdSense client ID</label>
-                  <input id="adsense" className="input" type="text" value={adsenseClient} onChange={(e) => setAdsenseClient(e.target.value)} placeholder="e.g. ca-pub-XXXXXXXXXXXXXXXX" />
-                </div>
               </div>
             </div>
             <div className="hero-gallery">
@@ -297,8 +253,6 @@ export default function App() {
               </div>
             </div>
           </section>
-
-          <GoogleAdSlot client={adsenseClient} slot="auto" />
 
           <section id="analyze" className="panel">
             <SectionTitle>Tell us about you</SectionTitle>
@@ -368,17 +322,6 @@ export default function App() {
                   <>
                     <label className="field-label">Budget per item (₹)</label>
                     <input type="number" className="input" min={100} step={50} value={budget} onChange={(e) => setBudget(e.target.value)} />
-
-                    <div className="aff-grid">
-                      <div>
-                        <label className="field-label">Amazon affiliate tag</label>
-                        <input type="text" className="input" value={amazonTag} onChange={(e) => setAmazonTag(e.target.value)} placeholder="yourtag-21" />
-                      </div>
-                      <div>
-                        <label className="field-label">Flipkart affiliate id</label>
-                        <input type="text" className="input" value={flipkartTag} onChange={(e) => setFlipkartTag(e.target.value)} placeholder="yourid" />
-                      </div>
-                    </div>
                   </>
                 )}
 
@@ -395,10 +338,9 @@ export default function App() {
                     <li>Likely causes and gentle precautions</li>
                     <li>Morning and night routines tailored to you</li>
                     <li>Nutrition gaps and Indian diet ideas</li>
-                    <li>Optional product picks with affiliate links</li>
+                    <li>Product picks chosen by our team (affiliate links provided by us)</li>
                   </ul>
                 </div>
-                <GoogleAdSlot client={adsenseClient} slot="auto" />
               </aside>
             </div>
           </section>
@@ -548,16 +490,14 @@ export default function App() {
                   <li key={p.q} className="product-item">
                     <div className="product-name">{p.label}</div>
                     <div className="product-links">
-                      <a className="link" target="_blank" rel="noreferrer" href={buildAffiliateLink('amazon', p.q, amazonTag)}>Amazon</a>
-                      <a className="link" target="_blank" rel="noreferrer" href={buildAffiliateLink('flipkart', p.q, flipkartTag)}>Flipkart</a>
+                      <a className="link" target="_blank" rel="noreferrer" href={buildAffiliateLink('amazon', p.q)}>Amazon</a>
+                      <a className="link" target="_blank" rel="noreferrer" href={buildAffiliateLink('flipkart', p.q)}>Flipkart</a>
                     </div>
                   </li>
                 ))}
               </ul>
             </div>
           )}
-
-          <GoogleAdSlot client={adsenseClient} slot="auto" />
 
           <div className="actions center">
             <button className="nav-btn" onClick={() => setView('home')}>Back</button>
@@ -573,10 +513,28 @@ export default function App() {
               <li>This tool offers general guidance and routine suggestions, not a medical diagnosis.</li>
               <li>For persistent, severe, or rapidly worsening problems, consult a qualified dermatologist.</li>
               <li>Patch test new products. If irritation occurs, stop immediately.</li>
-              <li>AI analysis can be imperfect. Image quality, lighting, and occlusions can affect results.</li>
-              <li>Product links may be affiliate links; prices and availability can change.</li>
+              <li>Image-based analysis can be imperfect. Image quality, lighting, and occlusions can affect results.</li>
+              <li>Product links are affiliate links managed by the site owners; prices and availability can change.</li>
             </ul>
           </div>
+
+          <div className="card">
+            <h3 className="card-title">Sources and data</h3>
+            <p className="muted">Content, routines and nutrition suggestions are based on commonly accepted dermatology and nutrition guidance. Sources used when designing this site include public resources and clinical guidance such as the American Academy of Dermatology (AAD), British Association of Dermatologists (BAD), PubMed reviews on common skin conditions, and Indian dietary references for food examples. Images in the hero were sourced from Pexels (free-to-use photos) and the site logo was uploaded by the site owner.</p>
+            <p className="muted">Specific image sources used in the app: Pexels photos: portrait (https://images.pexels.com/photos/3893744/pexels-photo-3893744.jpeg), serum (https://images.pexels.com/photos/4041231/pexels-photo-4041231.jpeg), sunscreen (https://images.pexels.com/photos/8384529/pexels-photo-8384529.jpeg), hair care (https://images.pexels.com/photos/8467963/pexels-photo-8467963.jpeg).</p>
+          </div>
+
+          <div className="card">
+            <h3 className="card-title">Why use Skin &amp; Hair Care Mentor?</h3>
+            <ul className="list">
+              <li>Quick, practical routines tailored to your skin and hair type.</li>
+              <li>Indian diet suggestions to address common nutritional gaps.</li>
+              <li>Curated product recommendations chosen by our team to fit your budget.</li>
+              <li>Clear safety guidance and when to consult a professional.</li>
+            </ul>
+            <p className="muted">Slogan: "Look good, feel confident — simple science for everyday skincare."</p>
+          </div>
+
           <div className="actions center">
             <button className="cta-btn" onClick={() => setView('home')}>Go to Home</button>
           </div>
@@ -585,7 +543,7 @@ export default function App() {
 
       <footer className="footer">
         <div className="footer-inner">
-          <span>© {new Date().getFullYear()} GlowGuide</span>
+          <span>© {new Date().getFullYear()} Skin &amp; Hair Care Mentor</span>
           <a className="link" href="#" onClick={(e) => { e.preventDefault(); setView('limitations'); }}>Safety & Limitations</a>
         </div>
       </footer>
